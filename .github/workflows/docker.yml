@@ -1,0 +1,69 @@
+name: "Docker"
+
+on:
+  workflow_dispatch:
+
+  push:
+
+  schedule:
+    - cron: "0 8 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: "Build"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Builds into the local Docker daemon, so no export or import step
+      - name: Build images
+        run: make build
+
+      - name: Smoke test images
+        run: make test
+
+  publish-server:
+    name: "Publish (server)"
+    needs: build
+    if: ${{ github.ref == 'refs/heads/master' }}
+    uses: dockette/.github/.github/workflows/docker.yml@master
+    secrets: inherit
+    with:
+      image: "dockette/memzero"
+      tag: "server"
+      context: "."
+      platforms: "linux/amd64,linux/arm64"
+      push: true
+
+  publish-dashboard:
+    name: "Publish (dashboard)"
+    needs: build
+    if: ${{ github.ref == 'refs/heads/master' }}
+    uses: dockette/.github/.github/workflows/docker.yml@master
+    secrets: inherit
+    with:
+      image: "dockette/memzero"
+      tag: "dashboard"
+      context: "dashboard"
+      platforms: "linux/amd64,linux/arm64"
+      push: true
+
+  docs:
+    name: "Docs"
+    needs: [publish-server, publish-dashboard]
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/master' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: dockette/memzero
