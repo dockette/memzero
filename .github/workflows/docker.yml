@@ -12,49 +12,61 @@ permissions:
   contents: read
 
 jobs:
+  version:
+    name: "Version"
+    runs-on: ubuntu-latest
+    outputs:
+      mem0: ${{ steps.version.outputs.mem0 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Resolve version
+        id: version
+        run: |
+          version=$(sed -n 's/^MEM0_VERSION=//p' .env.dist)
+          for file in Dockerfile dashboard/Dockerfile; do
+            grep -qx "ARG MEM0_VERSION=${version}" "${file}" || { echo "::error file=${file}::MEM0_VERSION does not match .env.dist (${version})"; exit 1; }
+          done
+          echo "mem0=${version}" >> "${GITHUB_OUTPUT}"
+
   build:
     name: "Build"
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # Builds into the local Docker daemon, so no export or import step
       - name: Build images
         run: make build
 
       - name: Smoke test images
         run: make test
 
-  publish-server:
-    name: "Publish (server)"
-    needs: build
+  publish:
+    name: "Publish"
+    needs: [version, build]
     if: ${{ github.ref == 'refs/heads/master' }}
+    strategy:
+      matrix:
+        include:
+          - { tag: "server", context: "." }
+          - { tag: "server-${{ needs.version.outputs.mem0 }}", context: "." }
+          - { tag: "dashboard", context: "dashboard" }
+          - { tag: "dashboard-${{ needs.version.outputs.mem0 }}", context: "dashboard" }
     uses: dockette/.github/.github/workflows/docker.yml@master
     secrets: inherit
     with:
       image: "dockette/memzero"
-      tag: "server"
-      context: "."
-      platforms: "linux/amd64,linux/arm64"
-      push: true
-
-  publish-dashboard:
-    name: "Publish (dashboard)"
-    needs: build
-    if: ${{ github.ref == 'refs/heads/master' }}
-    uses: dockette/.github/.github/workflows/docker.yml@master
-    secrets: inherit
-    with:
-      image: "dockette/memzero"
-      tag: "dashboard"
-      context: "dashboard"
+      tag: ${{ matrix.tag }}
+      context: ${{ matrix.context }}
       platforms: "linux/amd64,linux/arm64"
       push: true
 
   docs:
     name: "Docs"
-    needs: [publish-server, publish-dashboard]
+    needs: publish
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/master' }}
     steps:

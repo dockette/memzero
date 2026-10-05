@@ -10,71 +10,38 @@
 
 -----
 
-## Motivation
+## Images
 
-Mem0 ships a self-hosted server, but no maintained prebuild images (the last
-`mem0/mem0-api-server` push is from 2025 and predates auth + dashboard).
-This repository provides prebuild multiarch images and a ready-to-run stack.
+Mem0 ships a self-hosted server, but no maintained prebuilt images. This repository
+builds multiarch (`amd64`, `arm64`) images from upstream mem0 releases.
 
-- `dockette/memzero:server` - Mem0 REST API (FastAPI + Alembic migrations)
-- `dockette/memzero:dashboard` - Mem0 dashboard (Next.js)
+| Tag                                   | Description                                 |
+|---------------------------------------|---------------------------------------------|
+| `dockette/memzero:server`             | Mem0 REST API (FastAPI), latest build       |
+| `dockette/memzero:server-<version>`   | Mem0 REST API pinned to mem0 `<version>`    |
+| `dockette/memzero:dashboard`          | Mem0 dashboard (Next.js), latest build      |
+| `dockette/memzero:dashboard-<version>`| Mem0 dashboard pinned to mem0 `<version>`   |
 
-Both images are built from a pinned upstream tag (`MEM0_VERSION`).
+Use the versioned tags (e.g. `server-2.2.1`) in production. The unversioned tags
+move with every rebuild.
 
 ## Usage
 
-1. Create `.env` file.
+1. Download [`docker-compose.yml`](https://github.com/dockette/memzero/blob/master/docker-compose.yml),
+   [`postgres/init-db.sh`](https://github.com/dockette/memzero/blob/master/postgres/init-db.sh) and
+   [`.env.dist`](https://github.com/dockette/memzero/blob/master/.env.dist).
 
-```env
-# Docker images
-DOCKER_SERVER_IMAGE=dockette/memzero:server
-DOCKER_DASHBOARD_IMAGE=dockette/memzero:dashboard
+2. Copy `.env.dist` to `.env`, then set `OPENAI_API_KEY` and change `JWT_SECRET` and `POSTGRES_PASSWORD`.
 
-# Docker: ports
-MEM0_PORT=8888
-DASHBOARD_PORT=3000
-POSTGRES_PORT=8432
-
-# Docker: mem0
-OPENAI_API_KEY=sk-...
-JWT_SECRET=change-me
-AUTH_DISABLED=false
-MEM0_TELEMETRY=false
-MEM0_DEFAULT_LLM_MODEL=gpt-5-mini
-MEM0_DEFAULT_EMBEDDER_MODEL=text-embedding-3-small
-
-# Docker: dashboard
-DASHBOARD_URL=http://localhost:3000
-DASHBOARD_API_URL=http://localhost:8888
-DASHBOARD_INSTANCE_NAME=Memzero
-
-# Docker: postgres
-POSTGRES_DB=postgres
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=change-me
-POSTGRES_COLLECTION_NAME=memories
-APP_DB_NAME=mem0_app
-```
-
-> [!IMPORTANT]
-> `OPENAI_API_KEY`, `JWT_SECRET` and `POSTGRES_PASSWORD` are required.
-> The API refuses to boot without a key for the default LLM / embedder provider.
-
-2. Create `docker-compose.yml` file.
-
-Copy [`docker-compose.yml`](./docker-compose.yml) and [`postgres/init-db.sh`](./postgres/init-db.sh) files.
-
-3. Start Docker services.
+3. Start the stack.
 
 ```
 docker compose up
 ```
 
-4. Open `http://localhost:3000` in your browser and finish the setup wizard.
+4. Open `http://localhost:3000` and finish the setup wizard. It creates the first admin account and API key.
 
-It creates the first admin account and the first API key.
-
-5. Use the API.
+5. Use the API (OpenAPI docs on `http://localhost:8888/docs`).
 
 ```
 curl -X POST http://localhost:8888/memories \
@@ -83,61 +50,44 @@ curl -X POST http://localhost:8888/memories \
 	-d '{"messages":[{"role":"user","content":"I love hiking"}],"user_id":"alice"}'
 ```
 
-OpenAPI docs are on `http://localhost:8888/docs`.
+| Service     | Port   | Description                          |
+|-------------|--------|--------------------------------------|
+| `mem0`      | `8888` | REST API, runs migrations on start   |
+| `dashboard` | `3000` | Web UI (memories, entities, API keys)|
+| `postgres`  | `8432` | pgvector storage + app database      |
 
-## Services
-
-| Service     | Image                         | Port   | Description                                |
-|-------------|-------------------------------|--------|--------------------------------------------|
-| `mem0`      | `dockette/memzero:server`     | `8888` | REST API, runs migrations on start         |
-| `dashboard` | `dockette/memzero:dashboard`  | `3000` | Web UI (memories, entities, API keys)      |
-| `postgres`  | `pgvector/pgvector:pg17`      | `8432` | Vector storage + app database              |
-
-Data is persisted in `.docker/postgres` (Postgres) and `.docker/history` (SQLite history db).
+Data is persisted in `.docker/postgres` and `.docker/history`.
 
 ## Configuration
 
-**Server**
+All variables are listed in [`.env.dist`](https://github.com/dockette/memzero/blob/master/.env.dist). The most important ones:
 
-| Variable                      | Default                  | Description                                             |
-|-------------------------------|--------------------------|---------------------------------------------------------|
-| `OPENAI_API_KEY`              |                          | LLM + embedder key (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` are bundled too) |
-| `MEM0_DEFAULT_LLM_MODEL`      | `gpt-5-mini`             | Default LLM model                                       |
-| `MEM0_DEFAULT_EMBEDDER_MODEL` | `text-embedding-3-small` | Default embedder model                                  |
-| `JWT_SECRET`                  |                          | Secret for dashboard sessions, required                 |
-| `ADMIN_API_KEY`               |                          | Optional master key for `X-API-Key`                     |
-| `AUTH_DISABLED`               | `false`                  | Local development only, never in production             |
-| `MEM0_TELEMETRY`              | `false`                  | Upstream anonymous telemetry (on by default upstream)   |
-| `WORKERS`                     | `1`                      | Uvicorn workers                                         |
-| `HISTORY_DB_PATH`             | `/app/history/history.db`| SQLite memory history db                                |
-| `SKIP_MIGRATIONS`             |                          | Set to skip `alembic upgrade head` on start             |
+| Variable                      | Description                                                         |
+|-------------------------------|---------------------------------------------------------------------|
+| `OPENAI_API_KEY`              | LLM + embedder key, required (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` also supported) |
+| `JWT_SECRET`                  | Secret for dashboard sessions, required                             |
+| `POSTGRES_PASSWORD`           | Postgres password, required                                         |
+| `ADMIN_API_KEY`               | Optional master key for `X-API-Key`                                 |
+| `MEM0_DEFAULT_LLM_MODEL`      | Default LLM model (`gpt-5-mini`)                                    |
+| `MEM0_DEFAULT_EMBEDDER_MODEL` | Default embedder model (`text-embedding-3-small`)                   |
+| `MEM0_TELEMETRY`              | Upstream anonymous telemetry, `false` by default here               |
+| `AUTH_DISABLED`               | Local development only, never in production                         |
+| `SKIP_MIGRATIONS`             | Set to skip `alembic upgrade head` on start                         |
 
-**Postgres**
-
-| Variable                   | Default    | Description                            |
-|----------------------------|------------|----------------------------------------|
-| `POSTGRES_HOST`            | `postgres` | Host                                   |
-| `POSTGRES_PORT`            | `5432`     | Port                                   |
-| `POSTGRES_DB`              | `postgres` | Database used by pgvector for memories |
-| `POSTGRES_USER`            | `postgres` | User                                   |
-| `POSTGRES_PASSWORD`        |            | Password, required                     |
-| `POSTGRES_COLLECTION_NAME` | `memories` | Vector collection                      |
-| `APP_DB_NAME`              | `mem0_app` | Database for users / api keys / config |
-
-> [!TIP]
-> For more detailed configuration options, please refer to the [Mem0 official documentation](https://docs.mem0.ai/).
+See the [Mem0 documentation](https://docs.mem0.ai/) for more.
 
 ## Build
 
 ```
 make build      # build both images
+make test       # smoke test both images
 make push       # push both images
 make up         # start the stack
 make health     # check the stack
 make clean      # stop the stack and drop data
 ```
 
-Bump `MEM0_VERSION` in `.env.dist` to build a newer upstream release.
+To upgrade mem0, bump `MEM0_VERSION` in `.env.dist`, `Dockerfile` and `dashboard/Dockerfile`. CI fails if they differ.
 
 ## Development
 

@@ -5,13 +5,15 @@ export
 
 .PHONY: build
 build:
-	docker buildx build --platform ${DOCKER_PLATFORM} --build-arg MEM0_VERSION=${MEM0_VERSION} -t ${DOCKER_SERVER_IMAGE} .
-	docker buildx build --platform ${DOCKER_PLATFORM} --build-arg MEM0_VERSION=${MEM0_VERSION} -t ${DOCKER_DASHBOARD_IMAGE} dashboard
+	docker buildx build --platform ${DOCKER_PLATFORM} --build-arg MEM0_VERSION=${MEM0_VERSION} -t ${DOCKER_SERVER_IMAGE} -t ${DOCKER_SERVER_IMAGE}-${MEM0_VERSION} .
+	docker buildx build --platform ${DOCKER_PLATFORM} --build-arg MEM0_VERSION=${MEM0_VERSION} -t ${DOCKER_DASHBOARD_IMAGE} -t ${DOCKER_DASHBOARD_IMAGE}-${MEM0_VERSION} dashboard
 
 .PHONY: push
 push:
 	docker push ${DOCKER_SERVER_IMAGE}
+	docker push ${DOCKER_SERVER_IMAGE}-${MEM0_VERSION}
 	docker push ${DOCKER_DASHBOARD_IMAGE}
+	docker push ${DOCKER_DASHBOARD_IMAGE}-${MEM0_VERSION}
 
 .PHONY: up
 up:
