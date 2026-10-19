@@ -13,7 +13,7 @@
 ## Images
 
 Mem0 ships a self-hosted server, but no maintained prebuilt images. This repository
-builds multiarch (`amd64`, `arm64`) images from upstream mem0 releases.
+builds `amd64` images from upstream mem0 releases.
 
 | Tag                                   | Description                                 |
 |---------------------------------------|---------------------------------------------|

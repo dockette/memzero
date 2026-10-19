@@ -61,7 +61,7 @@ jobs:
       image: "dockette/memzero"
       tag: ${{ matrix.tag }}
       context: ${{ matrix.context }}
-      platforms: "linux/amd64,linux/arm64"
+      platforms: "linux/amd64"
       push: true
 
   docs:
